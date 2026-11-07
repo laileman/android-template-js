@@ -227,7 +227,7 @@ make apk-release
 
 CI 的整个 job 跑在 **容器**（`eclipse-temurin:21-jdk`）里，不依赖 runner 预装的 SDK：JDK 21 来自镜像，Android CLI 由官方脚本在容器内安装，SDK 组件用 `android sdk install platforms/android-36 platform-tools build-tools/35.0.0` 装好，全程不使用已废弃的 `sdkmanager`，也不再依赖 `android-actions/setup-android`。`ANDROID_HOME` / `ANDROID_SDK_ROOT` 指向 `/opt/android-sdk` 供 Gradle 使用。
 
-换 JDK 或换成别的构建镜像时，只要容器内有 `curl`、`git`，并保证 `JAVA_HOME` 可用即可。
+换 JDK 或换成别的构建镜像时，容器内至少要有 `git`（checkout）、`curl`（装 Android CLI）、`make` 与 `awk`（Makefile 用到），并保证 `JAVA_HOME` 可用。
 
 发布新版本：
 

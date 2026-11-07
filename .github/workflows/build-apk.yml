@@ -22,11 +22,13 @@ jobs:
       ANDROID_HOME: /opt/android-sdk
       ANDROID_SDK_ROOT: /opt/android-sdk
     steps:
-      # checkout 依赖 git，Android CLI 依赖 curl，均为容器内基础依赖
+      # 容器基础镜像很精简：git 供 checkout，curl 供 Android CLI 安装脚本，
+      # make/awk 供 Makefile 使用（temurin 镜像里没有 make）
       - name: Install prerequisites
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends git curl unzip ca-certificates
+          apt-get install -y --no-install-recommends \
+            git curl ca-certificates unzip make mawk
 
       - name: Checkout
         uses: actions/checkout@v4
