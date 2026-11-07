@@ -1,0 +1,39 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+release
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# 敏感信息：签名密钥与第三方服务凭证，切勿提交
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store

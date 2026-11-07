@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>IP 信息查询</title>
+    <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <div class="header-top">
+                <h1>IP 信息查询</h1>
+                <span id="app-version" class="version-badge"></span>
+            </div>
+            <p class="subtitle">数据来源：ifconfig.me/all.json</p>
+        </header>
+
+        <div class="card">
+            <div class="card-head">
+                <h2>公网连接信息</h2>
+                <button id="fetch-btn" class="btn">刷新</button>
+            </div>
+            <p id="status-output" class="status">等待查询...</p>
+            <ul id="result-list" class="result-list"></ul>
+        </div>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+</body>
+</html>

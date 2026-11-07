@@ -1,0 +1,100 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+# 打 tag 时需要创建 Release，因此需要写权限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # 用 Android CLI 准备 SDK（sdkmanager 已废弃）；runner 自带 SDK 与已接受的 license
+      - name: Setup Android SDK
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+
+          ACLI="$SDK/cmdline-tools/latest/bin/android"
+          if [ ! -x "$ACLI" ]; then
+            ACLI="$(command -v android || true)"
+          fi
+          if [ ! -x "$ACLI" ]; then
+            echo "::error::未找到 Android CLI，请确认 runner 的 cmdline-tools 已包含 android 二进制"
+            exit 1
+          fi
+
+          "$ACLI" --sdk="$SDK" sdk install \
+            platforms/android-36 platform-tools build-tools/35.0.0
+          "$ACLI" --sdk="$SDK" sdk list
+
+          # android sdk install 对不存在的包只打印提示、退出码仍为 0，这里显式校验
+          for pkg in platforms/android-36 platform-tools build-tools/35.0.0; do
+            "$ACLI" --sdk="$SDK" sdk list "$pkg" | grep -q "$pkg" \
+              || { echo "::error::$pkg 未安装成功"; exit 1; }
+          done
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # 配置了签名 secrets 时还原密钥库，产物即为已签名 release APK；
+      # 未配置则跳过，产出未签名 release APK。
+      - name: Restore signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/release.jks
+            {
+              echo "storeFile=release.jks"
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+            } > android/keystore.properties
+          fi
+
+      - name: Build Debug APK
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: make apk-debug
+
+      # 打 tag 时版本号取 tag（去掉前缀 v），覆盖 package.json 中的版本
+      - name: Build Release APK
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: make apk-release VERSION="${GITHUB_REF_NAME#v}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.apk

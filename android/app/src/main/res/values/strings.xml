@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SRE Ops App</string>
+    <string name="title_activity_main">SRE Ops App</string>
+    <string name="package_name">com.sre.ops</string>
+    <string name="custom_url_scheme">com.sre.ops</string>
+</resources>
