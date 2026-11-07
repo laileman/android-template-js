@@ -38,7 +38,13 @@
 
 macOS 上 `JAVA_HOME` 会自动在下面这些位置查找：`~/.source/java/jdk-21`、Android Studio 自带 JBR、`/usr/libexec/java_home`。其他位置请自行 `export JAVA_HOME=...`。
 
-安装 SDK 组件用 Android CLI（`sdkmanager` 已废弃，不要再使用）。包名用 `/` 分隔：
+安装 SDK 组件用 Android CLI（`sdkmanager` 已废弃，不要再使用）。没装过 CLI 的话，macOS 上先跑官方安装脚本：
+
+```bash
+curl -fsSL https://dl.google.com/android/cli/latest/darwin_arm64/install.sh | bash   # Intel 机器把 darwin_arm64 换成 darwin_x86_64
+```
+
+包名用 `/` 分隔：
 
 ```bash
 SDK="$HOME/.source/android-sdk"
@@ -219,7 +225,9 @@ make apk-release
 
 版本号取自 tag 时会去掉前缀 `v`，即 tag `v1.2.0` → `versionName 1.2.0`、`versionCode 10200`、产物 `release/app-1.2.0-release.apk`。
 
-CI 里的 Android SDK 由 **Android CLI** 准备（`android sdk install platforms/android-36 platform-tools build-tools/35.0.0`），不使用已废弃的 `sdkmanager`，也不再依赖 `android-actions/setup-android`；`ANDROID_HOME` 与 `ANDROID_SDK_ROOT` 由该步骤写入 `$GITHUB_ENV` 供 Gradle 使用。
+CI 的整个 job 跑在 **容器**（`eclipse-temurin:21-jdk`）里，不依赖 runner 预装的 SDK：JDK 21 来自镜像，Android CLI 由官方脚本在容器内安装，SDK 组件用 `android sdk install platforms/android-36 platform-tools build-tools/35.0.0` 装好，全程不使用已废弃的 `sdkmanager`，也不再依赖 `android-actions/setup-android`。`ANDROID_HOME` / `ANDROID_SDK_ROOT` 指向 `/opt/android-sdk` 供 Gradle 使用。
+
+换 JDK 或换成别的构建镜像时，只要容器内有 `curl`、`git`，并保证 `JAVA_HOME` 可用即可。
 
 发布新版本：
 

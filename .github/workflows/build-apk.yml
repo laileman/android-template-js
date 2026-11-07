@@ -14,7 +14,20 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 整个任务跑在容器里：镜像自带 JDK 21，Android CLI 由官方脚本在容器内安装。
+    # 不依赖 runner 预装的 SDK / cmdline-tools（里面的 sdkmanager 已废弃且不含 android 二进制）。
+    container:
+      image: eclipse-temurin:21-jdk
+    env:
+      ANDROID_HOME: /opt/android-sdk
+      ANDROID_SDK_ROOT: /opt/android-sdk
     steps:
+      # checkout 依赖 git，Android CLI 依赖 curl，均为容器内基础依赖
+      - name: Install prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git curl unzip ca-certificates
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -23,35 +36,22 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
+      # sdkmanager 已废弃，官方替代品是 Android CLI
+      - name: Install Android CLI
+        run: |
+          curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # 用 Android CLI 准备 SDK（sdkmanager 已废弃）；runner 自带 SDK 与已接受的 license
       - name: Setup Android SDK
         run: |
-          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
-
-          ACLI="$SDK/cmdline-tools/latest/bin/android"
-          if [ ! -x "$ACLI" ]; then
-            ACLI="$(command -v android || true)"
-          fi
-          if [ ! -x "$ACLI" ]; then
-            echo "::error::未找到 Android CLI，请确认 runner 的 cmdline-tools 已包含 android 二进制"
-            exit 1
-          fi
-
-          "$ACLI" --sdk="$SDK" sdk install \
+          mkdir -p "$ANDROID_HOME"
+          android --sdk="$ANDROID_HOME" sdk install \
             platforms/android-36 platform-tools build-tools/35.0.0
-          "$ACLI" --sdk="$SDK" sdk list
+          android --sdk="$ANDROID_HOME" sdk list
 
           # android sdk install 对不存在的包只打印提示、退出码仍为 0，这里显式校验
           for pkg in platforms/android-36 platform-tools build-tools/35.0.0; do
-            "$ACLI" --sdk="$SDK" sdk list "$pkg" | grep -q "$pkg" \
+            android --sdk="$ANDROID_HOME" sdk list "$pkg" | grep -q "$pkg" \
               || { echo "::error::$pkg 未安装成功"; exit 1; }
           done
 
