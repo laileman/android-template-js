@@ -220,21 +220,27 @@ make apk-release
 
 | 触发条件 | 行为 |
 | --- | --- |
-| push 到 `main` / `master`、PR、手动触发 | 构建 Debug APK，上传为 workflow artifact |
-| 推送 `v*` tag（如 `v1.2.0`） | 用 tag 作为版本号构建 Release APK，上传 artifact 并自动创建 GitHub Release |
+| push 到 `main` / `master`、PR、手动触发 | 构建 Debug APK，上传为 workflow artifact（**Releases 页面不会出现条目**） |
+| 推送版本 tag（`v1.2.0` 或 `1.2.0`） | 用 tag 作为版本号构建 Release APK，上传 artifact，并在 repo 的 **Releases 页面创建条目**、附上 APK |
 
-版本号取自 tag 时会去掉前缀 `v`，即 tag `v1.2.0` → `versionName 1.2.0`、`versionCode 10200`、产物 `release/app-1.2.0-release.apk`。
+只有打 tag 才会在 Releases 页面产生条目——这是 GitHub Actions 的常规做法（`GITHUB_TOKEN` 顺带创建的 tag 不会反过来触发 workflow，避免循环，因此用 tag 发布要手动 push tag）。
+
+版本号取自 tag 时会去掉前缀 `v`，即 `v1.2.0` 和 `1.2.0` 都得到 `versionName 1.2.0`、`versionCode 10200`、产物 `release/app-1.2.0-release.apk`。
 
 CI 的整个 job 跑在 **容器**（`eclipse-temurin:21-jdk`）里，不依赖 runner 预装的 SDK：JDK 21 来自镜像，Android CLI 由官方脚本在容器内安装，SDK 组件用 `android sdk install platforms/android-36 platform-tools build-tools/35.0.0` 装好，全程不使用已废弃的 `sdkmanager`，也不再依赖 `android-actions/setup-android`。`ANDROID_HOME` / `ANDROID_SDK_ROOT` 指向 `/opt/android-sdk` 供 Gradle 使用。
 
+Android SDK 组件与 Gradle 依赖都用 `actions/cache` 缓存，命中时省掉每次约 400MB 的重复下载。改动 SDK 组件版本时，记得同步改 `Cache Android SDK` 步骤里的 cache key。
+
 换 JDK 或换成别的构建镜像时，容器内至少要有 `git`（checkout）、`curl`（装 Android CLI）、`make` 与 `awk`（Makefile 用到），并保证 `JAVA_HOME` 可用。
 
-发布新版本：
+发布新版本（会出现在 repo 的 Releases 页面）：
 
 ```bash
 git tag v1.0.1
 git push origin v1.0.1
 ```
+
+未配置第 8 节的签名 secrets 时，Release 里的 APK 是**未签名**的，手机装不上。正式发布前先配好 secrets。
 
 ---
 

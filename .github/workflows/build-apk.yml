@@ -3,7 +3,8 @@ name: Build APK
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
+    # v1.2.3 与 1.2.3 两种 tag 写法都支持
+    tags: ['v*', '*.*.*']
   pull_request:
   workflow_dispatch:
 
@@ -31,12 +32,19 @@ jobs:
             git curl ca-certificates unzip make mawk
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      # 缓存 SDK 组件（约 400MB）。key 里带上组件版本，改版本时自动失效。
+      - name: Cache Android SDK
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ANDROID_HOME }}
+          key: android-sdk-${{ runner.os }}-platform36-buildtools35.0.0
 
       # sdkmanager 已废弃，官方替代品是 Android CLI
       - name: Install Android CLI
@@ -47,6 +55,7 @@ jobs:
       - name: Setup Android SDK
         run: |
           mkdir -p "$ANDROID_HOME"
+          # 命中缓存时这里是秒过的 no-op
           android --sdk="$ANDROID_HOME" sdk install \
             platforms/android-36 platform-tools build-tools/35.0.0
           android --sdk="$ANDROID_HOME" sdk list
@@ -56,6 +65,16 @@ jobs:
             android --sdk="$ANDROID_HOME" sdk list "$pkg" | grep -q "$pkg" \
               || { echo "::error::$pkg 未安装成功"; exit 1; }
           done
+
+      # 缓存 Gradle 依赖，避免每次重新下载 AGP 与 AndroidX
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -80,23 +99,26 @@ jobs:
           fi
 
       - name: Build Debug APK
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ github.ref_type != 'tags' }}
         run: make apk-debug
 
-      # 打 tag 时版本号取 tag（去掉前缀 v），覆盖 package.json 中的版本
+      # 打 tag 时版本号取 tag（去掉可能的前缀 v），覆盖 package.json 中的版本
       - name: Build Release APK
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ github.ref_type == 'tags' }}
         run: make apk-release VERSION="${GITHUB_REF_NAME#v}"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: apk
           path: release/*.apk
           if-no-files-found: error
 
+      # 该步骤产生 repo 的 Releases 页面条目；未打 tag 时不会执行
       - name: Publish GitHub Release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        uses: softprops/action-gh-release@v2
+        if: ${{ github.ref_type == 'tags' }}
+        uses: softprops/action-gh-release@v3
         with:
           files: release/*.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: true
